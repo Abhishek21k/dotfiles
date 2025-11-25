@@ -1,0 +1,10 @@
+theme = iterm2.conf
+
+keybind = shift+enter=text:\n
+keybind = super+period=text:\x03
+
+background-blur-radius = 35
+background-opacity = 0.8
+
+clipboard-read = allow
+clipboard-write = allow
