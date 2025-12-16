@@ -200,3 +200,7 @@ export PATH=$PATH:$ANDROID_HOME/platform-tools
 
 # Added by Antigravity
 export PATH="/Users/zenitsu/.antigravity/antigravity/bin:$PATH"
+
+# fzf keybindings
+source /opt/homebrew/opt/fzf/shell/key-bindings.zsh
+source /opt/homebrew/opt/fzf/shell/completion.zsh
