@@ -1,2 +1,31 @@
+gui:
+  theme:
+    cherryPickedCommitFgColor:
+      - "#7aa2f7"
+    cherryPickedCommitBgColor:
+      - "#bb9af7"
+    activeBorderColor:
+      - "#ff9e64"
+      - "bold"
+    unstagedChangesColor:
+      - "#db4b4b"
+    selectedLineBgColor:
+      - "#283457"
+    searchingActiveBorderColor:
+      - "#ff9e64"
+      - "bold"
+    optionsTextColor:
+      - "#7aa2f7"
+    inactiveBorderColor:
+      - "#27a1b9"
+    defaultFgColor:
+      - "#c0caf5"
+  nerdFontsVersion: "3"
 os:
   editPreset: "nvim-remote"
+customCommands:
+  - key: "<c-l>"
+    command: 'git log --graph --pretty=format:"%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr) %C(bold blue)<%an>%Creset" --abbrev-commit --date=relative'
+    context: "global"
+    output: "popup"
+    description: "Beautiful log"

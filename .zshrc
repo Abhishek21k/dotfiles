@@ -106,8 +106,10 @@ alias cls='clear'
 alias dockerup='open -a Docker'
 alias lg='lazygit'
 alias ld='lazydocker'
+
 export HOMEBREW_NO_AUTO_UPDATE=1
 export PATH="/usr/local/opt/libpq/bin:$PATH"
+export XDG_CONFIG_HOME="$HOME/.config"
 
 # Ip location check alias
 function geoip() {
