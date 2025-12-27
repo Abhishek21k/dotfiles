@@ -25,7 +25,9 @@ os:
   editPreset: "nvim-remote"
 customCommands:
   - key: "<c-l>"
-    command: 'git log --graph --pretty=format:"%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr) %C(bold blue)<%an>%Creset" --abbrev-commit --date=relative'
+    command: 'git log --graph --color=always --pretty=format:"%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr) %C(bold blue)<%an>%Creset" --abbrev-commit --date=relative | head -n 100'
     context: "global"
     output: "popup"
+    outputTitle: "Git Beautiful Log"
+
     description: "Beautiful log"
