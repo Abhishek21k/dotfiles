@@ -130,13 +130,9 @@ export ANDROID_HOME=$HOME/Library/Android/sdk
 export PATH=$PATH:$ANDROID_HOME/tools:$ANDROID_HOME/platform-tools
 
 export PATH=$PATH:/Users/zenitsu/.spicetify
+
 # The following lines have been added by Docker Desktop to enable Docker CLI completions.
 fpath=(/Users/zenitsu/.docker/completions $fpath)
-autoload -Uz compinit
-compinit
-# End of Docker CLI completions
-eval "$(uv generate-shell-completion zsh)"
-eval "$(uvx --generate-shell-completion zsh)"
 
 # The next line updates PATH for the Google Cloud SDK.
 if [ -f '/Users/zenitsu/Downloads/google-cloud-sdk/path.zsh.inc' ]; then . '/Users/zenitsu/Downloads/google-cloud-sdk/path.zsh.inc'; fi
@@ -162,6 +158,56 @@ compdef _uv_run_mod uv
 export BUN_INSTALL="$HOME/.bun"
 export PATH="$BUN_INSTALL/bin:$PATH"
 eval "$(zoxide init zsh)"
+
+export NVM_DIR="$HOME/.nvm"
+# Add npm global bin to PATH without loading all of nvm
+if [ -d "$NVM_DIR/versions/node" ]; then
+  export PATH="$NVM_DIR/versions/node/$(ls -t $NVM_DIR/versions/node | head -1)/bin:$PATH"
+fi
+
+# Lazy load nvm - only loads when you actually use it
+nvm() {
+  unset -f nvm node npm npx
+  [ -s "/opt/homebrew/opt/nvm/nvm.sh" ] && \. "/opt/homebrew/opt/nvm/nvm.sh"
+  [ -s "/opt/homebrew/opt/nvm/etc/bash_completion.d/nvm" ] && \. "/opt/homebrew/opt/nvm/etc/bash_completion.d/nvm"
+  nvm "$@"
+}
+
+node() {
+  unset -f nvm node npm npx
+  [ -s "/opt/homebrew/opt/nvm/nvm.sh" ] && \. "/opt/homebrew/opt/nvm/nvm.sh"
+  node "$@"
+}
+
+npm() {
+  unset -f nvm node npm npx
+  [ -s "/opt/homebrew/opt/nvm/nvm.sh" ] && \. "/opt/homebrew/opt/nvm/nvm.sh"
+  npm "$@"
+}
+
+npx() {
+  unset -f nvm node npm npx
+  [ -s "/opt/homebrew/opt/nvm/nvm.sh" ] && \. "/opt/homebrew/opt/nvm/nvm.sh"
+  npx "$@"
+}
+
+export ANDROID_HOME=$HOME/Library/Android/sdk
+export PATH=$PATH:$ANDROID_HOME/emulator
+export PATH=$PATH:$ANDROID_HOME/platform-tools
+
+# Added by Antigravity
+export PATH="/Users/zenitsu/.antigravity/antigravity/bin:$PATH"
+
+# fzf keybindings
+source /opt/homebrew/opt/fzf/shell/key-bindings.zsh
+source /opt/homebrew/opt/fzf/shell/completion.zsh
+export PATH="$HOME/.local/bin:$PATH"
+
+autoload -Uz compinit
+compinit
+
+eval "$(uv generate-shell-completion zsh)"
+eval "$(uvx --generate-shell-completion zsh)"
 
 #compdef pnpm
 ###-begin-pnpm-completion-###
@@ -189,20 +235,4 @@ if type compdef &>/dev/null; then
     compdef _pnpm_completion pnpm
   fi
 fi
-###-end-pnpm-completion-###
- export NVM_DIR="$HOME/.nvm"
-  [ -s "/opt/homebrew/opt/nvm/nvm.sh" ] && \. "/opt/homebrew/opt/nvm/nvm.sh"  # This loads nvm
-  [ -s "/opt/homebrew/opt/nvm/etc/bash_completion.d/nvm" ] && \. "/opt/homebrew/opt/nvm/etc/bash_completion.d/nvm"  # This loads nvm bash_completion
 
-
-
-export ANDROID_HOME=$HOME/Library/Android/sdk
-export PATH=$PATH:$ANDROID_HOME/emulator
-export PATH=$PATH:$ANDROID_HOME/platform-tools
-
-# Added by Antigravity
-export PATH="/Users/zenitsu/.antigravity/antigravity/bin:$PATH"
-
-# fzf keybindings
-source /opt/homebrew/opt/fzf/shell/key-bindings.zsh
-source /opt/homebrew/opt/fzf/shell/completion.zsh
