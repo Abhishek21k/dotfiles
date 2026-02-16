@@ -13,7 +13,15 @@ return {
         files = {
           hidden = true,
           ignored = true,
-          exclude = { ".git", ".DS_Store", "node_modules", "dist", ".next", ".expo", "build", "target" },
+          exclude = {
+            ".git", ".DS_Store", ".trash",
+            -- JS/TS
+            "node_modules", "dist", ".next", ".expo", "build",
+            -- Rust
+            "target",
+            -- Python
+            "venv", ".venv", "env", "__pycache__", ".pytest_cache", ".tox", ".mypy_cache", ".ruff_cache",
+          },
         },
         grep = {
           hidden = false,
