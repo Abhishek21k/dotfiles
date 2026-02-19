@@ -16,11 +16,17 @@ return {
           exclude = {
             ".git", ".DS_Store", ".trash",
             -- JS/TS
-            "node_modules", "dist", ".next", ".expo", "build",
+            "node_modules", "dist", ".next", "build",
+            -- React Native / Expo
+            ".expo", "android", "ios",
             -- Rust
             "target",
             -- Python
             "venv", ".venv", "env", "__pycache__", ".pytest_cache", ".tox", ".mypy_cache", ".ruff_cache",
+            -- Go
+            "vendor",
+            -- Dart / Flutter
+            ".dart_tool", ".pub-cache", ".pub",
           },
         },
         grep = {
