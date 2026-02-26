@@ -236,3 +236,5 @@ if type compdef &>/dev/null; then
   fi
 fi
 
+# OpenClaw Completion
+source "/Users/zenitsu/.openclaw/completions/openclaw.zsh"
