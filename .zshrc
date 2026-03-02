@@ -238,3 +238,6 @@ fi
 
 # OpenClaw Completion
 source "/Users/zenitsu/.openclaw/completions/openclaw.zsh"
+
+# opencode
+export PATH=/Users/zenitsu/.opencode/bin:$PATH
