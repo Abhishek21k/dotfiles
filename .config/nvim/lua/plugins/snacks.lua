@@ -14,6 +14,7 @@ return {
       },
       sources = {
         files = {
+          dirs = { vim.uv.cwd() },
           hidden = true,
           ignored = true,
           exclude = {
@@ -33,6 +34,7 @@ return {
           },
         },
         grep = {
+          dirs = { vim.uv.cwd() },
           hidden = false,
           ignored = false,
           exclude = {

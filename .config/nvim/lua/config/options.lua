@@ -5,3 +5,5 @@
 vim.g.snacks_animate = false
 
 vim.opt.scrolloff = 999
+vim.opt.splitkeep = "screen"   -- keep text stable when splitting windows
+vim.opt.confirm = true          -- ask to save instead of erroring on :q
