@@ -82,11 +82,11 @@ source $ZSH/oh-my-zsh.sh
 # export LANG=en_US.UTF-8
 
 # Preferred editor for local and remote sessions
-# if [[ -n $SSH_CONNECTION ]]; then
-#   export EDITOR='vim'
-# else
-#   export EDITOR='nvim'
-# fi
+if [[ -n $SSH_CONNECTION ]]; then
+  export EDITOR='vim'
+else
+  export EDITOR='nvim'
+fi
 
 # Compilation flags
 # export ARCHFLAGS="-arch $(uname -m)"
@@ -103,7 +103,6 @@ source $ZSH/oh-my-zsh.sh
 # alias zshconfig="mate ~/.zshrc"
 # alias ohmyzsh="mate ~/.oh-my-zsh"
 alias cls='clear'
-alias dockerup='open -a Docker'
 alias lg='lazygit'
 alias ld='lazydocker'
 
@@ -125,6 +124,7 @@ function geoip() {
 
 
 code () { VSCODE_CWD="$PWD" open -n -b "com.microsoft.VSCode" --args $* ;}
+
 export JAVA_HOME=$(/usr/libexec/java_home)
 export ANDROID_HOME=$HOME/Library/Android/sdk
 export PATH=$PATH:$ANDROID_HOME/tools:$ANDROID_HOME/platform-tools
@@ -236,8 +236,9 @@ if type compdef &>/dev/null; then
   fi
 fi
 
-# OpenClaw Completion
-source "/Users/zenitsu/.openclaw/completions/openclaw.zsh"
 
 # opencode
 export PATH=/Users/zenitsu/.opencode/bin:$PATH
+
+# OpenFang
+export PATH=/Users/zenitsu/.openfang/bin:$PATH

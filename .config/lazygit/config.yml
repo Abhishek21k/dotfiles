@@ -31,3 +31,15 @@ customCommands:
     outputTitle: "Git Beautiful Log"
 
     description: "Beautiful log"
+  - key: "W"
+    context: "localBranches"
+    description: "Create worktree from branch"
+    command: "git worktree add -b '{{.Form.Branch}}' \"../.worktree/$(basename $(git rev-parse --show-toplevel))-{{.Form.Suffix}}\" 'refs/heads/{{.SelectedLocalBranch.Name}}'"
+    prompts:
+      - type: "input"
+        title: "New branch name"
+        key: "Branch"
+      - type: "input"
+        title: "Worktree suffix (for ../.worktree/<repo>-___)"
+        key: "Suffix"
+        initialValue: "{{.Form.Branch}}"
