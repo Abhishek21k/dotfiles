@@ -5,10 +5,38 @@
 input=$(cat)
 cwd=$(echo "$input" | jq -r '.workspace.current_dir // .cwd // empty')
 
+# ── Cache dir for expensive operations ────────────────────────────────────────
+CACHE_DIR="${XDG_RUNTIME_DIR:-/tmp}/cc-statusline"
+mkdir -p "$CACHE_DIR"
+
+# Cache git operations per-directory (TTL: 5 seconds)
+_git_cache() {
+  local key tag cache_file result now mtime
+  tag=$(printf '%s' "$cwd" | tr '/' '_')
+  cache_file="$CACHE_DIR/git_${tag}"
+  now=$(date +%s)
+  if [[ -f "$cache_file" ]]; then
+    mtime=$(stat -f %m "$cache_file" 2>/dev/null || stat -c %Y "$cache_file" 2>/dev/null)
+    if (( now - mtime < 5 )); then
+      cat "$cache_file"
+      return
+    fi
+  fi
+  # Compute branch + dirty flag together to avoid double git calls
+  local b d
+  b=$(git -C "$cwd" --no-optional-locks symbolic-ref --short HEAD 2>/dev/null)
+  d=$(git -C "$cwd" --no-optional-locks status --porcelain 2>/dev/null)
+  result="${b}|${d}"
+  printf '%s' "$result" > "$cache_file"
+  printf '%s' "$result"
+}
+
+git_info=$(_git_cache)
+branch="${git_info%%|*}"
+git_dirty="${git_info#*|}"
+
 # ── Data extraction ───────────────────────────────────────────────────────────
 dir=$(basename "$cwd")
-branch=$(git -C "$cwd" --no-optional-locks symbolic-ref --short HEAD 2>/dev/null)
-git_dirty=$(git -C "$cwd" --no-optional-locks status --porcelain 2>/dev/null)
 model=$(echo "$input" | jq -r '.model.display_name // empty')
 used_pct=$(echo "$input" | jq -r '.context_window.used_percentage // empty')
 # Derive used tokens from percentage × window size (input_tokens only counts latest request)
@@ -19,6 +47,12 @@ input_tok=$(echo "$input" | jq -r '
   else empty end
 ')
 win_size=$(echo "$input" | jq -r '.context_window.context_window_size // empty')
+
+# ── Rate limit extraction ─────────────────────────────────────────────────────
+five_pct=$(echo "$input"  | jq -r '.rate_limits.five_hour.used_percentage  // empty')
+week_pct=$(echo "$input"  | jq -r '.rate_limits.seven_day.used_percentage  // empty')
+five_reset=$(echo "$input" | jq -r '.rate_limits.five_hour.resets_at       // empty')
+week_reset=$(echo "$input" | jq -r '.rate_limits.seven_day.resets_at       // empty')
 
 # ── Colour palette — Tokyo Night (256-colour foreground codes) ────────────────
 # All variables hold real ESC bytes thanks to $'...' bash syntax.
@@ -37,6 +71,10 @@ FG_CTX_CRIT=$'\e[38;5;203m' # red   (#f7768e approx)
 FG_LABEL=$'\e[38;5;245m'    # mid-grey labels
 FG_SEP=$'\e[38;5;237m'      # dark grey separators
 FG_DIM=$'\e[38;5;240m'      # dimmed punctuation
+FG_RATE_OK=$'\e[38;5;150m'  # green  — low usage
+FG_RATE_MID=$'\e[38;5;179m' # orange — mid usage
+FG_RATE_HIGH=$'\e[38;5;215m'# amber  — high usage
+FG_RATE_CRIT=$'\e[38;5;203m'# red    — near limit
 
 # Segment separators — plain dot works in any font, arrow for visual flair
 SEP_DOT="${FG_SEP} · ${RST}"
@@ -70,6 +108,35 @@ short_model() {
   m="${m#Claude }"
   m=$(printf '%s' "$m" | sed 's/ *([^)]*)$//')
   printf '%s' "$m"
+}
+
+# ── Helper: "resets in Xh Ym" from Unix epoch ────────────────────────────────
+fmt_reset() {
+  local epoch="$1"
+  [[ -z "$epoch" || "$epoch" == "null" ]] && return
+  local now diff
+  now=$(date +%s)
+  diff=$(( epoch - now ))
+  (( diff <= 0 )) && printf 'now' && return
+  local h=$(( diff / 3600 ))
+  local m=$(( (diff % 3600) / 60 ))
+  if (( h > 0 )); then
+    printf '%dh%dm' "$h" "$m"
+  else
+    printf '%dm' "$m"
+  fi
+}
+
+# ── Helper: rate-limit colour based on used % ─────────────────────────────────
+rate_color() {
+  local pct="$1"
+  local ip
+  ip=$(printf '%.0f' "$pct" 2>/dev/null) || ip=0
+  if   (( ip >= 90 )); then printf '%s' "$FG_RATE_CRIT"
+  elif (( ip >= 70 )); then printf '%s' "$FG_RATE_HIGH"
+  elif (( ip >= 40 )); then printf '%s' "$FG_RATE_MID"
+  else                      printf '%s' "$FG_RATE_OK"
+  fi
 }
 
 # ── Helper: mini progress bar (8 chars) ──────────────────────────────────────
@@ -124,6 +191,29 @@ if [[ -n "$used_pct" ]]; then
   total_fmt=$(fmt_tokens "$win_size")
 
   out+="${SEP_DOT}${C_CTX}${bar}${RST} ${FG_LABEL}${pct}%${RST} ${FG_DIM}${used_fmt}/${total_fmt}${RST}"
+fi
+
+# 5. Rate limits — only rendered when the API has returned data
+# 5a. 5-hour session limit
+if [[ -n "$five_pct" ]]; then
+  five_int=$(printf '%.0f' "$five_pct")
+  five_c=$(rate_color "$five_pct")
+  five_bar=$(mini_bar "$five_int")
+  five_reset_str=$(fmt_reset "$five_reset")
+  reset_label=''
+  [[ -n "$five_reset_str" ]] && reset_label=" ${FG_DIM}↺${five_reset_str}${RST}"
+  out+="${SEP_DOT}${FG_LABEL}${DIM}5h${RST} ${five_c}${five_bar}${RST} ${FG_LABEL}${five_int}%${RST}${reset_label}"
+fi
+
+# 5b. 7-day weekly limit
+if [[ -n "$week_pct" ]]; then
+  week_int=$(printf '%.0f' "$week_pct")
+  week_c=$(rate_color "$week_pct")
+  week_bar=$(mini_bar "$week_int")
+  week_reset_str=$(fmt_reset "$week_reset")
+  reset_label=''
+  [[ -n "$week_reset_str" ]] && reset_label=" ${FG_DIM}↺${week_reset_str}${RST}"
+  out+="${SEP_DOT}${FG_LABEL}${DIM}7d${RST} ${week_c}${week_bar}${RST} ${FG_LABEL}${week_int}%${RST}${reset_label}"
 fi
 
 printf '%s\n' "$out"
