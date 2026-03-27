@@ -242,3 +242,6 @@ export PATH=/Users/zenitsu/.opencode/bin:$PATH
 
 # OpenFang
 export PATH=/Users/zenitsu/.openfang/bin:$PATH
+
+# OpenClaw Completion
+source "/Users/zenitsu/.openclaw/completions/openclaw.zsh"

@@ -34,7 +34,7 @@ customCommands:
   - key: "W"
     context: "localBranches"
     description: "Create worktree from branch"
-    command: "git worktree add -b '{{.Form.Branch}}' \"../.worktree/$(basename $(git rev-parse --show-toplevel))-{{.Form.Suffix}}\" 'refs/heads/{{.SelectedLocalBranch.Name}}'"
+    command: 'git worktree add -b ''{{.Form.Branch}}'' "../.worktree/$(basename $(git rev-parse --show-toplevel))-{{.Form.Suffix}}" ''refs/heads/{{.SelectedLocalBranch.Name}}'' && WT="../.worktree/$(basename $(git rev-parse --show-toplevel))-{{.Form.Suffix}}" && find . -name ''.env.*'' | while read f; do mkdir -p "$WT/$(dirname $f)" && cp "$f" "$WT/$f"; done 2>/dev/null; true'
     prompts:
       - type: "input"
         title: "New branch name"
