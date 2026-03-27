@@ -71,6 +71,7 @@ FG_CTX_CRIT=$'\e[38;5;203m' # red   (#f7768e approx)
 FG_LABEL=$'\e[38;5;245m'    # mid-grey labels
 FG_SEP=$'\e[38;5;237m'      # dark grey separators
 FG_DIM=$'\e[38;5;240m'      # dimmed punctuation
+FG_TIME=$'\e[38;5;110m'     # soft blue (#87afd7 approx)
 FG_RATE_OK=$'\e[38;5;150m'  # green  — low usage
 FG_RATE_MID=$'\e[38;5;179m' # orange — mid usage
 FG_RATE_HIGH=$'\e[38;5;215m'# amber  — high usage
@@ -152,49 +153,51 @@ mini_bar() {
   printf '%s' "$bar"
 }
 
-# ── Build output ──────────────────────────────────────────────────────────────
-out=''
+# ── Terminal width ────────────────────────────────────────────────────────────
+cols=${COLUMNS:-$(tput cols 2>/dev/null || echo 120)}
 
-# 1. Directory segment  ── 📁 dir
-out+=" ${FG_LABEL}${DIM}in${RST} ${BOLD}${FG_DIR}${dir}${RST}"
+# Visible length: strip ANSI escapes, count characters
+vlen() {
+  printf '%s' "$1" | sed $'s/\033\\[[0-9;]*m//g' | wc -m | tr -d ' '
+}
 
-# 2. Git segment  ── ⎇ branch [*]
+# ── Build output — full detail, wrap to second line if needed ────────────────
+# Line 1: clock · dir · branch · model · context
+# Line 2 (overflow): 5h rate limit · 7d rate limit
+
+# ── Line 1 segments ──
+now=$(date +'%I:%M %p')
+now="${now#0}"
+line1=" ${FG_TIME}${now}${RST}"
+
+line1+="${SEP_DOT}${FG_LABEL}${DIM}in${RST} ${BOLD}${FG_DIR}${dir}${RST}"
+
 if [[ -n "$branch" ]]; then
   local_dirty=''
-  if [[ -n "$git_dirty" ]]; then
-    local_dirty=" ${FG_DIRTY}*${RST}"
-  fi
-  out+="${SEP_DOT}${FG_GIT}${branch}${RST}${local_dirty}"
+  [[ -n "$git_dirty" ]] && local_dirty=" ${FG_DIRTY}*${RST}"
+  line1+="${SEP_DOT}${FG_GIT}${branch}${RST}${local_dirty}"
 fi
 
-# 3. Model segment  ── model short-name
 if [[ -n "$model" ]]; then
   smodel=$(short_model "$model")
-  out+="${SEP_DOT}${FG_MODEL}${smodel}${RST}"
+  line1+="${SEP_DOT}${FG_MODEL}${smodel}${RST}"
 fi
 
-# 4. Context segment  ── bar pct% used/total
 if [[ -n "$used_pct" ]]; then
   pct=$(printf '%.0f' "$used_pct")
-
-  # Pick colour based on usage level
-  if [[ "$pct" -ge 80 ]]; then
-    C_CTX="$FG_CTX_CRIT"
-  elif [[ "$pct" -ge 50 ]]; then
-    C_CTX="$FG_CTX_WARN"
-  else
-    C_CTX="$FG_CTX_OK"
+  if   (( pct >= 80 )); then C_CTX="$FG_CTX_CRIT"
+  elif (( pct >= 50 )); then C_CTX="$FG_CTX_WARN"
+  else                       C_CTX="$FG_CTX_OK"
   fi
-
   bar=$(mini_bar "$pct")
   used_fmt=$(fmt_tokens "$input_tok")
   total_fmt=$(fmt_tokens "$win_size")
-
-  out+="${SEP_DOT}${C_CTX}${bar}${RST} ${FG_LABEL}${pct}%${RST} ${FG_DIM}${used_fmt}/${total_fmt}${RST}"
+  line1+="${SEP_DOT}${C_CTX}${bar}${RST} ${FG_LABEL}${pct}%${RST} ${FG_DIM}${used_fmt}/${total_fmt}${RST}"
 fi
 
-# 5. Rate limits — only rendered when the API has returned data
-# 5a. 5-hour session limit
+# ── Rate-limit segments (may overflow to line 2) ──
+rate_out=''
+
 if [[ -n "$five_pct" ]]; then
   five_int=$(printf '%.0f' "$five_pct")
   five_c=$(rate_color "$five_pct")
@@ -202,18 +205,28 @@ if [[ -n "$five_pct" ]]; then
   five_reset_str=$(fmt_reset "$five_reset")
   reset_label=''
   [[ -n "$five_reset_str" ]] && reset_label=" ${FG_DIM}↺${five_reset_str}${RST}"
-  out+="${SEP_DOT}${FG_LABEL}${DIM}5h${RST} ${five_c}${five_bar}${RST} ${FG_LABEL}${five_int}%${RST}${reset_label}"
+  rate_out+="${FG_LABEL}${DIM}5h${RST} ${five_c}${five_bar}${RST} ${FG_LABEL}${five_int}%${RST}${reset_label}"
 fi
 
-# 5b. 7-day weekly limit
 if [[ -n "$week_pct" ]]; then
+  [[ -n "$rate_out" ]] && rate_out+="${SEP_DOT}"
   week_int=$(printf '%.0f' "$week_pct")
   week_c=$(rate_color "$week_pct")
   week_bar=$(mini_bar "$week_int")
   week_reset_str=$(fmt_reset "$week_reset")
   reset_label=''
   [[ -n "$week_reset_str" ]] && reset_label=" ${FG_DIM}↺${week_reset_str}${RST}"
-  out+="${SEP_DOT}${FG_LABEL}${DIM}7d${RST} ${week_c}${week_bar}${RST} ${FG_LABEL}${week_int}%${RST}${reset_label}"
+  rate_out+="${FG_LABEL}${DIM}7d${RST} ${week_c}${week_bar}${RST} ${FG_LABEL}${week_int}%${RST}${reset_label}"
 fi
 
-printf '%s\n' "$out"
+# ── Assemble: one line if it fits, two lines if it doesn't ───────────────────
+if [[ -z "$rate_out" ]]; then
+  printf '%s\n' "$line1"
+else
+  full="${line1}${SEP_DOT}${rate_out}"
+  if (( $(vlen "$full") <= cols )); then
+    printf '%s\n' "$full"
+  else
+    printf '%s\n %s\n' "$line1" "$rate_out"
+  fi
+fi
