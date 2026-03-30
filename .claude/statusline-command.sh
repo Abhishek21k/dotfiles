@@ -71,7 +71,7 @@ FG_CTX_CRIT=$'\e[38;5;203m' # red   (#f7768e approx)
 FG_LABEL=$'\e[38;5;245m'    # mid-grey labels
 FG_SEP=$'\e[38;5;237m'      # dark grey separators
 FG_DIM=$'\e[38;5;240m'      # dimmed punctuation
-FG_TIME=$'\e[38;5;110m'     # soft blue (#87afd7 approx)
+FG_TIME=$'\e[38;5;110m'     # soft blue (#87afd7 approx) — kept for reference
 FG_RATE_OK=$'\e[38;5;150m'  # green  — low usage
 FG_RATE_MID=$'\e[38;5;179m' # orange — mid usage
 FG_RATE_HIGH=$'\e[38;5;215m'# amber  — high usage
@@ -162,15 +162,11 @@ vlen() {
 }
 
 # ── Build output — full detail, wrap to second line if needed ────────────────
-# Line 1: clock · dir · branch · model · context
+# Line 1: dir · branch · model · context
 # Line 2 (overflow): 5h rate limit · 7d rate limit
 
 # ── Line 1 segments ──
-now=$(date +'%I:%M %p')
-now="${now#0}"
-line1=" ${FG_TIME}${now}${RST}"
-
-line1+="${SEP_DOT}${FG_LABEL}${DIM}in${RST} ${BOLD}${FG_DIR}${dir}${RST}"
+line1=" ${FG_LABEL}${DIM}in${RST} ${BOLD}${FG_DIR}${dir}${RST}"
 
 if [[ -n "$branch" ]]; then
   local_dirty=''
