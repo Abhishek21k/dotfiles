@@ -179,6 +179,45 @@ if [[ -n "$model" ]]; then
   line1+="${SEP_DOT}${FG_MODEL}${smodel}${RST}"
 fi
 
+# ── Thinking / effort badge ──────────────────────────────────────────────────
+effort_level=$(echo "$input" | jq -r '.effort.level // empty')
+thinking_on=$(echo "$input" | jq -r '.thinking.enabled // false')
+if [[ -n "$effort_level" ]]; then
+  FG_THINK=$'\e[38;5;141m'   # soft lavender
+  case "$effort_level" in
+    low)    effort_label="low"   ;;
+    medium) effort_label="med"   ;;
+    high)   effort_label="high"  ;;
+    xhigh)  effort_label="xhigh" ;;
+    max)    effort_label="max"   ;;
+    *)      effort_label="$effort_level" ;;
+  esac
+  line1+="${SEP_DOT}${FG_THINK}think:${effort_label}${RST}"
+elif [[ "$thinking_on" == "true" ]]; then
+  FG_THINK=$'\e[38;5;141m'
+  line1+="${SEP_DOT}${FG_THINK}thinking${RST}"
+fi
+
+# ── Caveman mode badge ───────────────────────────────────────────────────────
+cm_flag="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/.caveman-active"
+# Only show badge when the caveman plugin is actually enabled in settings
+cm_plugin_enabled=$(jq -r '(.enabledPlugins["caveman@caveman"] // false)' \
+  "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json" 2>/dev/null)
+if [[ -f "$cm_flag" && ! -L "$cm_flag" && "$cm_plugin_enabled" == "true" ]]; then
+  cm_mode=$(head -c 64 "$cm_flag" 2>/dev/null | tr -d '\n\r' | tr '[:upper:]' '[:lower:]' | tr -cd 'a-z0-9-')
+  case "$cm_mode" in
+    lite|full|ultra|wenyan|wenyan-lite|wenyan-full|wenyan-ultra|commit|review|compress)
+      FG_CAVE=$'\e[38;5;172m'
+      if [[ "$cm_mode" == "full" ]]; then
+        line1+="${SEP_DOT}${FG_CAVE}[CAVEMAN]${RST}"
+      else
+        cm_up=$(printf '%s' "$cm_mode" | tr '[:lower:]' '[:upper:]')
+        line1+="${SEP_DOT}${FG_CAVE}[CAVEMAN:${cm_up}]${RST}"
+      fi
+      ;;
+  esac
+fi
+
 if [[ -n "$used_pct" ]]; then
   pct=$(printf '%.0f' "$used_pct")
   if   (( pct >= 80 )); then C_CTX="$FG_CTX_CRIT"
