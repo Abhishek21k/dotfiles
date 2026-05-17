@@ -7,6 +7,43 @@
     "@rama_nigg/open-cursor@latest",
     "cursor-acp"
   ],
+  "agent": {
+    "yolo": {
+      "description": "Dangerously skip permissions",
+      "mode": "primary",
+      "permission": {
+        "*": "allow",
+        "bash": {
+          "*": "allow",
+          "sudo rm -rf /": "deny",
+          "shutdown*": "deny",
+          "reboot*": "deny",
+          "halt*": "deny",
+          "poweroff*": "deny",
+          "sudo passwd*": "deny",
+          "sudo useradd*": "deny",
+          "sudo userdel*": "deny",
+          "sudo ufw disable*": "deny",
+          "sudo iptables -F*": "deny",
+          "sudo rm /etc/*": "deny",
+          "sudo * /etc/*": "deny",
+          "cat ~/.aws/*": "deny",
+          "cat ~/.ssh/id_*": "deny"
+        },
+        "read": {
+          "*": "allow",
+          "*.env": "deny",
+          "*.env.*": "deny",
+          "*.env.example": "allow",
+          "*/secrets/*": "deny",
+          "*secret*": "deny",
+          "*password*": "deny",
+          "~/.aws/*": "deny",
+          "~/.ssh/id_*": "deny"
+        }
+      }
+    }
+  },
   "provider": {
     "cursor-acp": {
       "name": "Cursor",
