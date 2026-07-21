@@ -106,6 +106,8 @@ alias cls='clear'
 alias lg='lazygit'
 alias ld='lazydocker'
 
+alias claude2='CLAUDE_CONFIG_DIR='/Users/zenitsu/.claude2/' claude'
+
 export HOMEBREW_NO_AUTO_UPDATE=1
 export PATH="/usr/local/opt/libpq/bin:$PATH"
 export XDG_CONFIG_HOME="$HOME/.config"
@@ -265,3 +267,11 @@ _hermes() {
 
 compdef _hermes hermes
 
+
+# pnpm
+export PNPM_HOME="/Users/zenitsu/Library/pnpm"
+case ":$PATH:" in
+  *":$PNPM_HOME/bin:"*) ;;
+  *) export PATH="$PNPM_HOME/bin:$PATH" ;;
+esac
+# pnpm end
