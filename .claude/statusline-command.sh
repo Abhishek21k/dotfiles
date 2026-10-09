@@ -3,7 +3,32 @@
 # Uses $'...' bash syntax so ESC bytes are real at assignment time — no raw \033 bleed-through.
 
 input=$(cat)
-cwd=$(echo "$input" | jq -r '.workspace.current_dir // .cwd // empty')
+
+# ── Data extraction — one jq pass (the script re-runs every second via
+#    statusLine.refreshInterval, so keep it cheap). Fields split on \x1f so
+#    empty values survive `read`.
+IFS=$'\x1f' read -r cwd model used_pct input_tok win_size \
+  five_pct week_pct five_reset week_reset effort_level thinking_on < <(
+  jq -r '[
+    (.workspace.current_dir // .cwd // ""),
+    (.model.display_name // ""),
+    (.context_window.used_percentage // ""),
+    # Derive used tokens from percentage × window size (input_tokens only counts latest request)
+    ((.context_window.used_percentage // 0) as $pct
+      | (.context_window.context_window_size // 0) as $win
+      | if $pct > 0 and $win > 0 then ($pct / 100 * $win | floor) else "" end),
+    (.context_window.context_window_size // ""),
+    (.rate_limits.five_hour.used_percentage // ""),
+    (.rate_limits.seven_day.used_percentage // ""),
+    (.rate_limits.five_hour.resets_at // ""),
+    (.rate_limits.seven_day.resets_at // ""),
+    (.effort.level // ""),
+    (.thinking.enabled // false)
+  ] | map(tostring) | join("\u001f")' <<<"$input"
+)
+
+# Wall clock, read once per run (12-hour, matching the menu bar)
+read -r now clock_hm clock_ampm < <(date '+%s %-I:%M %p')
 
 # ── Cache dir for expensive operations ────────────────────────────────────────
 CACHE_DIR="${XDG_RUNTIME_DIR:-/tmp}/cc-statusline"
@@ -35,24 +60,7 @@ git_info=$(_git_cache)
 branch="${git_info%%|*}"
 git_dirty="${git_info#*|}"
 
-# ── Data extraction ───────────────────────────────────────────────────────────
 dir=$(basename "$cwd")
-model=$(echo "$input" | jq -r '.model.display_name // empty')
-used_pct=$(echo "$input" | jq -r '.context_window.used_percentage // empty')
-# Derive used tokens from percentage × window size (input_tokens only counts latest request)
-input_tok=$(echo "$input" | jq -r '
-  (.context_window.used_percentage // 0) as $pct |
-  (.context_window.context_window_size // 0) as $win |
-  if $pct > 0 and $win > 0 then (($pct / 100 * $win) | floor | tostring)
-  else empty end
-')
-win_size=$(echo "$input" | jq -r '.context_window.context_window_size // empty')
-
-# ── Rate limit extraction ─────────────────────────────────────────────────────
-five_pct=$(echo "$input"  | jq -r '.rate_limits.five_hour.used_percentage  // empty')
-week_pct=$(echo "$input"  | jq -r '.rate_limits.seven_day.used_percentage  // empty')
-five_reset=$(echo "$input" | jq -r '.rate_limits.five_hour.resets_at       // empty')
-week_reset=$(echo "$input" | jq -r '.rate_limits.seven_day.resets_at       // empty')
 
 # ── Colour palette — Tokyo Night (256-colour foreground codes) ────────────────
 # All variables hold real ESC bytes thanks to $'...' bash syntax.
@@ -71,11 +79,11 @@ FG_CTX_CRIT=$'\e[38;5;203m' # red   (#f7768e approx)
 FG_LABEL=$'\e[38;5;245m'    # mid-grey labels
 FG_SEP=$'\e[38;5;237m'      # dark grey separators
 FG_DIM=$'\e[38;5;240m'      # dimmed punctuation
-FG_TIME=$'\e[38;5;110m'     # soft blue (#87afd7 approx) — kept for reference
+FG_TIME=$'\e[38;5;110m'     # soft blue (#87afd7 approx) — clock
 FG_RATE_OK=$'\e[38;5;150m'  # green  — low usage
 FG_RATE_MID=$'\e[38;5;179m' # orange — mid usage
-FG_RATE_HIGH=$'\e[38;5;215m'# amber  — high usage
-FG_RATE_CRIT=$'\e[38;5;203m'# red    — near limit
+FG_RATE_HIGH=$'\e[38;5;215m' # amber  — high usage
+FG_RATE_CRIT=$'\e[38;5;203m' # red    — near limit
 
 # Segment separators — plain dot works in any font, arrow for visual flair
 SEP_DOT="${FG_SEP} · ${RST}"
@@ -115,9 +123,7 @@ short_model() {
 fmt_reset() {
   local epoch="$1"
   [[ -z "$epoch" || "$epoch" == "null" ]] && return
-  local now diff
-  now=$(date +%s)
-  diff=$(( epoch - now ))
+  local diff=$(( ${epoch%.*} - now ))
   (( diff <= 0 )) && printf 'now' && return
   local h=$(( diff / 3600 ))
   local m=$(( (diff % 3600) / 60 ))
@@ -180,8 +186,6 @@ if [[ -n "$model" ]]; then
 fi
 
 # ── Thinking / effort badge ──────────────────────────────────────────────────
-effort_level=$(echo "$input" | jq -r '.effort.level // empty')
-thinking_on=$(echo "$input" | jq -r '.thinking.enabled // false')
 if [[ -n "$effort_level" ]]; then
   FG_THINK=$'\e[38;5;141m'   # soft lavender
   case "$effort_level" in
@@ -231,37 +235,39 @@ if [[ -n "$used_pct" ]]; then
 fi
 
 # ── Rate-limit segments (may overflow to line 2) ──
+# The used % comes from the last API response, so it only moves when a message
+# is sent; the countdown is computed from the clock and ticks on every refresh.
+rate_seg() {
+  local label="$1" pct="$2" reset="$3"
+  # Window already rolled over since the last response: the old % is stale.
+  if [[ -n "$reset" ]] && (( ${reset%.*} <= now )); then
+    printf '%s' "${FG_LABEL}${DIM}${label}${RST} ${FG_RATE_OK}$(mini_bar 0)${RST} ${FG_DIM}reset${RST}"
+    return
+  fi
+  local ip reset_str reset_label=''
+  ip=$(printf '%.0f' "$pct")
+  reset_str=$(fmt_reset "$reset")
+  [[ -n "$reset_str" ]] && reset_label=" ${FG_DIM}↺${reset_str}${RST}"
+  printf '%s' "${FG_LABEL}${DIM}${label}${RST} $(rate_color "$pct")$(mini_bar "$ip")${RST} ${FG_LABEL}${ip}%${RST}${reset_label}"
+}
+
 rate_out=''
-
-if [[ -n "$five_pct" ]]; then
-  five_int=$(printf '%.0f' "$five_pct")
-  five_c=$(rate_color "$five_pct")
-  five_bar=$(mini_bar "$five_int")
-  five_reset_str=$(fmt_reset "$five_reset")
-  reset_label=''
-  [[ -n "$five_reset_str" ]] && reset_label=" ${FG_DIM}↺${five_reset_str}${RST}"
-  rate_out+="${FG_LABEL}${DIM}5h${RST} ${five_c}${five_bar}${RST} ${FG_LABEL}${five_int}%${RST}${reset_label}"
-fi
-
+[[ -n "$five_pct" ]] && rate_out+=$(rate_seg 5h "$five_pct" "$five_reset")
 if [[ -n "$week_pct" ]]; then
   [[ -n "$rate_out" ]] && rate_out+="${SEP_DOT}"
-  week_int=$(printf '%.0f' "$week_pct")
-  week_c=$(rate_color "$week_pct")
-  week_bar=$(mini_bar "$week_int")
-  week_reset_str=$(fmt_reset "$week_reset")
-  reset_label=''
-  [[ -n "$week_reset_str" ]] && reset_label=" ${FG_DIM}↺${week_reset_str}${RST}"
-  rate_out+="${FG_LABEL}${DIM}7d${RST} ${week_c}${week_bar}${RST} ${FG_LABEL}${week_int}%${RST}${reset_label}"
+  rate_out+=$(rate_seg 7d "$week_pct" "$week_reset")
 fi
 
-# ── Assemble: one line if it fits, two lines if it doesn't ───────────────────
+clock_seg="${FG_TIME}${clock_hm}${RST} ${FG_DIM}${clock_ampm}${RST}"
+
+# ── Assemble: one line if it fits, two lines if it doesn't; clock goes last ──
 if [[ -z "$rate_out" ]]; then
-  printf '%s\n' "$line1"
+  printf '%s\n' "${line1}${SEP_DOT}${clock_seg}"
 else
-  full="${line1}${SEP_DOT}${rate_out}"
+  full="${line1}${SEP_DOT}${rate_out}${SEP_DOT}${clock_seg}"
   if (( $(vlen "$full") <= cols )); then
     printf '%s\n' "$full"
   else
-    printf '%s\n %s\n' "$line1" "$rate_out"
+    printf '%s\n %s\n' "$line1" "${rate_out}${SEP_DOT}${clock_seg}"
   fi
 fi
